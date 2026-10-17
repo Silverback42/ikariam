@@ -1,0 +1,7 @@
+.git
+data
+tests
+*.db
+__pycache__
+pluenderliste.*
+config.json

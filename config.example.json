@@ -2,7 +2,11 @@
   "server": 2,
   "world": 72,
   "own_cities": [
-    {"name": "Hauptstadt", "x": 50, "y": 50}
+    {
+      "name": "Hauptstadt",
+      "x": 50,
+      "y": 50
+    }
   ],
   "max_distance": 15,
   "new_hours": 48,
@@ -10,5 +14,8 @@
   "exclude_alliances": [],
   "page_param": null,
   "max_pages": 20,
-  "extra_params": {}
+  "extra_params": {},
+  "min_score": 2000000,
+  "safe_amount": 0,
+  "ship_capacity": 500
 }

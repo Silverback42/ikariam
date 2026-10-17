@@ -1,0 +1,15 @@
+services:
+  pluenderliste:
+    build: .
+    container_name: ika-pluenderliste
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      IKA_SERVER: "2"
+      IKA_WORLD: "72"
+      # Leer lassen = kein Passwort (nur im eigenen WLAN/VPN sinnvoll)
+      APP_USER: "ika"
+      APP_PASSWORD: ""

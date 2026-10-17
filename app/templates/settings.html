@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen{% endblock %}
+{% block content %}
+<h1>Einstellungen</h1>
+{% if saved %}<div class="ok">Gespeichert.</div>{% endif %}
+<form method="post" action="/settings" class="stack">
+  <label>Eigene Städte <span class="muted">(eine pro Zeile: Name [x:y])</span>
+    <textarea name="own_cities" rows="5" placeholder="Hauptstadt [50:50]">{{ cities }}</textarea></label>
+  <div class="grid">
+    <label>Mindestpunkte (Mio.)<input name="min_score_mio" inputmode="decimal" value="{{ (cfg.min_score / 1000000)|round(2) }}"></label>
+    <label>Max. Entfernung (Felder)<input name="max_distance" inputmode="decimal" value="{{ cfg.max_distance if cfg.max_distance is not none }}" placeholder="unbegrenzt"></label>
+    <label>„NEU“ für (Stunden)<input name="new_hours" inputmode="decimal" value="{{ cfg.new_hours }}"></label>
+    <label>Cooldown nach Plündern (Std.)<input name="plunder_cooldown_hours" inputmode="decimal" value="{{ cfg.plunder_cooldown_hours }}"></label>
+    <label>Sicherer Bestand je Rohstoff<input name="safe_amount" inputmode="numeric" value="{{ cfg.safe_amount }}"></label>
+    <label>Ladung pro Schiff<input name="ship_capacity" inputmode="numeric" value="{{ cfg.ship_capacity }}"></label>
+    <label>Abruf alle (Stunden)<input name="refresh_hours" inputmode="decimal" value="{{ cfg.refresh_hours }}"></label>
+    <label>Server<input name="server" inputmode="numeric" value="{{ cfg.server }}"></label>
+    <label>Welt<input name="world" inputmode="numeric" value="{{ cfg.world }}"></label>
+  </div>
+  <label>Allianzen ausschließen <span class="muted">(kommagetrennt)</span>
+    <input name="exclude_alliances" value="{{ cfg.exclude_alliances|join(', ') }}"></label>
+  <p class="muted">„Sicherer Bestand“ ist die Menge, die das Lagerhaus des Ziels vor Plünderung schützt – trag den Wert ein, den du aus deinen Berichten kennst. Daraus werden Beute und Schiffsbedarf geschätzt.</p>
+  <button>Speichern</button>
+</form>
+{% endblock %}

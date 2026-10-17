@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="status">
+  <div>
+    <strong>{{ rows|length }}</strong> Ziele
+    <span class="muted">· ab {{ (cfg.min_score / 1000000)|round(1) }} Mio. Punkte{% if cfg.max_distance %} · max. {{ cfg.max_distance }} Felder{% endif %} · {{ total }} Inaktive gesamt</span>
+  </div>
+  <div class="muted">Letzter Abruf (UTC): {{ last_fetch or "noch keiner" }}{% if status.last_result %} – {{ status.last_result }}{% endif %}</div>
+  {% if status.last_error %}<div class="error">{{ status.last_error }}</div>{% endif %}
+  {% if not cfg.own_cities %}<div class="warn">Trage unter <a href="/settings">Einstellungen</a> deine Städte ein, damit die Entfernung berechnet wird.</div>{% endif %}
+  <div class="actions">
+    <form method="post" action="/refresh"><button>Jetzt abrufen</button></form>
+    <details class="upload">
+      <summary>HTML hochladen</summary>
+      <form method="post" action="/upload" enctype="multipart/form-data">
+        <p class="muted">Falls ika-map den Abruf blockiert: Seite speichern und hier hochladen.</p>
+        <input type="file" name="file" accept=".html,.htm,text/html" required>
+        <button>Hochladen</button>
+      </form>
+    </details>
+  </div>
+</section>
+
+<nav class="filters">
+  <a href="/?filter=all" class="{{ 'on' if filter == 'all' }}">Alle</a>
+  <a href="/?filter=new" class="{{ 'on' if filter == 'new' }}">Neu</a>
+  <a href="/?filter=ready" class="{{ 'on' if filter == 'ready' }}">Bereit</a>
+</nav>
+
+{% for r in rows %}
+<article class="card{{ ' new' if r.neu }}{{ ' wait' if not r.bereit }}">
+  <div class="head">
+    <div>
+      <div class="player">{{ r.spieler }}{% if r.neu %} <span class="badge">NEU</span>{% endif %}{% if not r.bereit %} <span class="badge grey">Cooldown</span>{% endif %}</div>
+      <div class="muted">{{ r.stadt }}{% if r.allianz %} · {{ r.allianz }}{% endif %}{% if r.insel %} · {{ r.insel }}{% endif %}</div>
+    </div>
+    {% if r.koordinaten %}<button class="coords" onclick="copyText(this, '{{ r.koordinaten }}')">{{ r.koordinaten }}</button>{% endif %}
+  </div>
+  <dl class="facts">
+    <div><dt>Punkte</dt><dd>{{ r.punkte_num|num if r.punkte_num is not none else (r.punkte or "?") }}</dd></div>
+    <div><dt>Entfernung</dt><dd>{{ r.entfernung if r.entfernung != "" else "–" }}</dd></div>
+    {% if r.rathaus %}<div><dt>Rathaus</dt><dd>{{ r.rathaus }}</dd></div>{% endif %}
+    <div><dt>Inaktiv seit</dt><dd>{{ r.inaktiv_erkannt }}</dd></div>
+  </dl>
+  {% if r.spionage %}
+  <div class="loot">
+    <div><strong>Beute ca. {{ r.beute|num }}</strong> · {{ r.schiffe }} Schiffe <span class="muted">(Spionage {{ r.spionage }})</span></div>
+    <div class="res">{% for k, v in r.rohstoffe.items() %}<span>{{ labels[k] }} {{ v|num }}</span>{% endfor %}</div>
+  </div>
+  {% endif %}
+  {% if r.geplündert %}<div class="muted">Geplündert: {{ r.geplündert }}{% if r.notiz %} · {{ r.notiz }}{% endif %}</div>{% endif %}
+  <div class="buttons">
+    <a class="btn" href="/spy?key={{ r.key|urlencode }}">Spionagebericht</a>
+    <form method="post" action="/plundered"><input type="hidden" name="key" value="{{ r.key }}"><button class="secondary">Geplündert</button></form>
+  </div>
+</article>
+{% else %}
+<p class="empty">Keine passenden Ziele. {% if not last_fetch %}Der erste Abruf legt nur den Ausgangsstand an; neue Inaktive erscheinen ab dem nächsten Abruf als „NEU“.{% endif %}</p>
+{% endfor %}
+{% endblock %}

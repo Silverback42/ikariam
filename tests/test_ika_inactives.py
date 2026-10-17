@@ -30,6 +30,20 @@ class ParseTest(unittest.TestCase):
         self.assertEqual((e[0]["x"], e[0]["y"]), (5, 77))
 
 
+class ScoreAndSpyTest(unittest.TestCase):
+    def test_parse_score(self):
+        self.assertEqual(ika.parse_score("2.345.678"), 2345678)
+        self.assertEqual(ika.parse_score("2,345,678"), 2345678)
+        self.assertEqual(ika.parse_score("2,3 Mio"), 2300000)
+        self.assertEqual(ika.parse_score("812"), 812)
+        self.assertIsNone(ika.parse_score("-"))
+
+    def test_spy_report_and_loot(self):
+        res = ika.parse_spy_report("Holz: 1.000\nWein 2.500\nMarmor\n3.000\nSchwefel 0")
+        self.assertEqual(res, {"wood": 1000, "wine": 2500, "marble": 3000, "sulfur": 0})
+        self.assertEqual(ika.estimate_loot(res, 1000, 500), (3500, 7))
+
+
 class FlowTest(unittest.TestCase):
     def test_new_and_gone_detection(self):
         cfg = {"server": 2, "world": 72, "own_cities": [{"x": 10, "y": 10}], "new_hours": 48}

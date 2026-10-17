@@ -62,6 +62,64 @@ def parse_coords(text):
     return None
 
 
+def parse_score(text):
+    """'2.345.678' / '2,345,678' / '2,3 Mio' / '2.3M' -> int, sonst None."""
+    t = (text or "").strip().lower().replace("\xa0", " ")
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(mio|m\b|mill)", t)
+    if m:
+        return int(round(float(m.group(1).replace(",", ".")) * 1_000_000))
+    m = re.search(r"\d{1,3}(?:[.,' ]\d{3})+|\d+", t)
+    if not m:
+        return None
+    return int(re.sub(r"\D", "", m.group(0)))
+
+
+RESOURCES = {
+    "wood": ("baumaterial", "holz", "wood", "building material"),
+    "wine": ("wein", "wine"),
+    "marble": ("marmor", "marble"),
+    "crystal": ("kristallglas", "kristall", "crystal glass", "crystal"),
+    "sulfur": ("schwefel", "sulfur", "sulphur"),
+}
+RESOURCE_LABELS = {"wood": "Baumaterial", "wine": "Wein", "marble": "Marmor", "crystal": "Kristall", "sulfur": "Schwefel"}
+
+
+def parse_spy_report(text):
+    """Liest Rohstoffmengen aus einem eingefügten Spionagebericht.
+
+    Sucht je Rohstoff den Namen und nimmt die erste Zahl danach (gleiche oder nächste Zeile).
+    Gibt {rohstoff: menge} nur für gefundene Rohstoffe zurück.
+    """
+    lines = [" ".join(l.split()) for l in (text or "").splitlines()]
+    lines = [l for l in lines if l]
+    found = {}
+    for i, line in enumerate(lines):
+        low = line.lower()
+        for res, names in RESOURCES.items():
+            if res in found:
+                continue
+            for name in names:
+                pos = low.find(name)
+                if pos < 0:
+                    continue
+                rest = line[pos + len(name):]
+                nxt = lines[i + 1] if i + 1 < len(lines) else ""
+                for candidate in (rest, nxt):
+                    m = re.search(r"\d{1,3}(?:[.,' ]\d{3})+|\d+", candidate)
+                    if m:
+                        found[res] = int(re.sub(r"\D", "", m.group(0)))
+                        break
+                break
+    return found
+
+
+def estimate_loot(resources, safe_amount, ship_capacity):
+    """Plünderbare Menge = Summe (Bestand - sicherer Bestand), Schiffe = aufgerundet."""
+    loot = sum(max(0, v - safe_amount) for v in resources.values())
+    ships = math.ceil(loot / ship_capacity) if ship_capacity else 0
+    return loot, ships
+
+
 def cell_text(cell):
     return " ".join(cell.get_text(" ", strip=True).split())
 
@@ -160,7 +218,64 @@ def open_db(path):
             plundered_at TEXT, note TEXT, from_baseline INTEGER DEFAULT 0)"""
     )
     db.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS spy_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, target_key TEXT, created_at TEXT,
+            wood INTEGER, wine INTEGER, marble INTEGER, crystal INTEGER, sulfur INTEGER, raw TEXT)"""
+    )
+    cols = {r[1] for r in db.execute("PRAGMA table_info(targets)")}
+    if "score_num" not in cols:
+        db.execute("ALTER TABLE targets ADD COLUMN score_num INTEGER")
+        for key, score in db.execute("SELECT key, score FROM targets").fetchall():
+            db.execute("UPDATE targets SET score_num=? WHERE key=?", (parse_score(score), key))
+        db.commit()
     return db
+
+
+def get_settings(db, defaults):
+    row = db.execute("SELECT v FROM meta WHERE k='settings'").fetchone()
+    cfg = dict(defaults)
+    if row:
+        cfg.update(json.loads(row[0]))
+    return cfg
+
+
+def save_settings(db, cfg):
+    db.execute("INSERT INTO meta (k, v) VALUES ('settings', ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+               (json.dumps(cfg, ensure_ascii=False),))
+    db.commit()
+
+
+def get_meta(db, k):
+    row = db.execute("SELECT v FROM meta WHERE k=?", (k,)).fetchone()
+    return row[0] if row else None
+
+
+def set_meta(db, k, v):
+    db.execute("INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, v))
+    db.commit()
+
+
+def save_spy_report(db, target_key, text, now):
+    res = parse_spy_report(text)
+    if not res:
+        return None
+    db.execute(
+        "INSERT INTO spy_reports (target_key, created_at, wood, wine, marble, crystal, sulfur, raw) VALUES (?,?,?,?,?,?,?,?)",
+        (target_key, now, *(res.get(r) for r in RESOURCES), text),
+    )
+    db.commit()
+    return res
+
+
+def latest_spy(db, target_key):
+    row = db.execute(
+        "SELECT created_at, wood, wine, marble, crystal, sulfur FROM spy_reports "
+        "WHERE target_key=? ORDER BY id DESC LIMIT 1", (target_key,)
+    ).fetchone()
+    if not row:
+        return None
+    return {"created_at": row[0], "resources": {r: v for r, v in zip(RESOURCES, row[1:]) if v is not None}}
 
 
 def baseline(db):
@@ -182,17 +297,19 @@ def update_db(db, entries, now):
             new_keys.append(key)
             db.execute(
                 """INSERT INTO targets (key, player, alliance, city, island, score, level, x, y, raw,
-                                          first_seen, last_seen, active, from_baseline)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)
+                                          first_seen, last_seen, active, from_baseline, score_num)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
                    ON CONFLICT(key) DO UPDATE SET active=1, from_baseline=0,
-                       first_seen=excluded.first_seen, last_seen=excluded.last_seen""",
+                       first_seen=excluded.first_seen, last_seen=excluded.last_seen, score_num=excluded.score_num""",
                 (key, e["player"], e["alliance"], e["city"], e["island"], e["score"], e["level"],
-                 e["x"], e["y"], json.dumps(e["raw"], ensure_ascii=False), now, now, int(first_run)),
+                 e["x"], e["y"], json.dumps(e["raw"], ensure_ascii=False), now, now, int(first_run),
+                 parse_score(e["score"])),
             )
         else:
             db.execute(
-                "UPDATE targets SET alliance=?, score=?, level=?, raw=?, last_seen=? WHERE key=?",
-                (e["alliance"], e["score"], e["level"], json.dumps(e["raw"], ensure_ascii=False), now, key),
+                "UPDATE targets SET alliance=?, score=?, score_num=?, level=?, raw=?, last_seen=? WHERE key=?",
+                (e["alliance"], e["score"], parse_score(e["score"]), e["level"],
+                 json.dumps(e["raw"], ensure_ascii=False), now, key),
             )
     gone = [k for k, a in known.items() if a and k not in current]
     db.executemany("UPDATE targets SET active=0 WHERE key=?", [(k,) for k in gone])
@@ -213,14 +330,21 @@ def build_list(db, cfg, now):
     cooldown = cfg.get("plunder_cooldown_hours", 0)
     threshold = (datetime.fromisoformat(now) - timedelta(hours=new_hours)).isoformat()
     exclude_alliances = {a.lower() for a in cfg.get("exclude_alliances", [])}
+    min_score = cfg.get("min_score") or 0
+    safe_amount = cfg.get("safe_amount", 0)
+    ship_capacity = cfg.get("ship_capacity", 500)
 
     rows = []
     for r in db.execute(
-        "SELECT key, player, alliance, city, island, score, level, x, y, first_seen, plundered_at, note, from_baseline "
-        "FROM targets WHERE active=1"
-    ):
-        key, player, alliance, city, island, score, level, x, y, first_seen, plundered_at, note, from_baseline = r
+        "SELECT key, player, alliance, city, island, score, level, x, y, first_seen, plundered_at, note, "
+        "from_baseline, score_num FROM targets WHERE active=1"
+    ).fetchall():
+        (key, player, alliance, city, island, score, level, x, y,
+         first_seen, plundered_at, note, from_baseline, score_num) = r
         if alliance and alliance.lower() in exclude_alliances:
+            continue
+        # Unbekannte Punktzahl bleibt drin, damit Parser-Probleme sichtbar statt still gefiltert sind.
+        if min_score and score_num is not None and score_num < min_score:
             continue
         d = distance(x, y, own)
         if max_dist is not None and d is not None and d > max_dist:
@@ -228,6 +352,8 @@ def build_list(db, cfg, now):
         ready = True
         if plundered_at and cooldown:
             ready = datetime.fromisoformat(plundered_at) + timedelta(hours=cooldown) <= datetime.fromisoformat(now)
+        spy = latest_spy(db, key)
+        loot, ships = estimate_loot(spy["resources"], safe_amount, ship_capacity) if spy else (None, None)
         rows.append({
             "neu": not from_baseline and first_seen >= threshold,
             "spieler": player, "allianz": alliance, "stadt": city, "insel": island,
@@ -237,14 +363,18 @@ def build_list(db, cfg, now):
             "inaktiv_erkannt": first_seen[:16].replace("T", " "),
             "geplündert": (plundered_at or "")[:16].replace("T", " "),
             "bereit": ready, "notiz": note or "", "key": key,
+            "punkte_num": score_num, "x": x, "y": y,
+            "spionage": spy["created_at"][:16].replace("T", " ") if spy else "",
+            "rohstoffe": spy["resources"] if spy else {},
+            "beute": loot if loot is not None else "", "schiffe": ships if ships is not None else "",
         })
-    rows.sort(key=lambda r: (not r["neu"], not r["bereit"],
+    rows.sort(key=lambda r: (not r["neu"], not r["bereit"], -(r["beute"] or 0),
                              r["entfernung"] if r["entfernung"] != "" else 1e9, r["spieler"].lower()))
     return rows
 
 
 COLUMNS = ["neu", "bereit", "spieler", "allianz", "stadt", "insel", "koordinaten",
-           "entfernung", "punkte", "rathaus", "inaktiv_erkannt", "geplündert", "notiz"]
+           "entfernung", "punkte", "rathaus", "beute", "schiffe", "spionage", "inaktiv_erkannt", "geplündert", "notiz"]
 
 
 def write_csv(rows, path):
@@ -290,8 +420,16 @@ def mark_plundered(db, player, note, now):
     return cur.rowcount
 
 
+DEFAULTS = {
+    "server": 2, "world": 72, "own_cities": [], "min_score": 2_000_000, "max_distance": None,
+    "new_hours": 48, "plunder_cooldown_hours": 12, "exclude_alliances": [],
+    "safe_amount": 0, "ship_capacity": 500, "refresh_hours": 3,
+    "page_param": None, "max_pages": 20, "extra_params": {},
+}
+
+
 def load_config(path):
-    cfg = {"server": 2, "world": 72}
+    cfg = dict(DEFAULTS)
     p = Path(path)
     if p.exists():
         cfg.update(json.loads(p.read_text(encoding="utf-8")))
