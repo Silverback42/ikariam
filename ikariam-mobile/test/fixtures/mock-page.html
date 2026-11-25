@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ikariam (Mock)</title>
+<!-- Absichtlich KEIN viewport-Meta-Tag: wie die echte Desktop-Seite. -->
+<style>
+  body { margin: 0; font: 12px Arial, sans-serif; background: #dbbe8c; }
+  #container { width: 1100px; margin: 0 auto; background: #f3dcb6; min-height: 1400px; position: relative; }
+  #GF_toolbar { height: 24px; background: #2b1d0e; color: #fff; padding: 4px; }
+  #cityResources { display: flex; gap: 14px; padding: 8px; background: #e9c98e; }
+  #cityResources li { list-style: none; }
+  #advisors { position: absolute; right: 10px; top: 40px; }
+  #advMilitary a { display: inline-block; width: 60px; height: 60px; background: #a88; }
+  #mainview { padding: 20px; }
+  .fake-city { width: 900px; height: 700px; background: linear-gradient(#8fb36b, #6f8f4e); border-radius: 10px; }
+  #templateView { position: absolute; left: 150px; top: 160px; width: 720px; background: #fff7e6; border: 2px solid #8a5a1f; padding: 10px; }
+</style>
+</head>
+<body id="city">
+<div id="container">
+  <div id="GF_toolbar">Ikariam Mock – Welt s1-de</div>
+  <ul id="cityResources">
+    <li>Holz <span id="js_GlobalMenu_wood">18.250</span> (+<span id="js_GlobalMenu_resourceProduction">1.800</span>)</li>
+    <li>Wein <span id="js_GlobalMenu_wine">4.120</span> Verbrauch <span id="js_GlobalMenu_WineConsumption">1.260</span>
+      <span id="js_GlobalMenu_production_container_wine" class="invisible"><span id="js_GlobalMenu_production_wine">0</span></span></li>
+    <li>Marmor <span id="js_GlobalMenu_marble">9.800</span>
+      <span id="js_GlobalMenu_production_container_marble"><span id="js_GlobalMenu_production_marble">900</span></span></li>
+    <li>Kristall <span id="js_GlobalMenu_crystal">2.100</span></li>
+    <li>Schwefel <span id="js_GlobalMenu_sulfur">7.600</span></li>
+  </ul>
+  <div id="advisors"><div id="advMilitary"><a href="?view=militaryAdvisor" class="normal"></a></div></div>
+  <div id="mainview"><div class="fake-city"></div></div>
+</div>
+<script>
+  // Nachbau des Ikariam-Seitenmodells aus den Fixtures (wird vom Test eingesetzt).
+  window.ikariam = { model: __MODEL__, templateView: null, backgroundView: { id: 'city' } };
+  // Nachbau des Ikariam-AJAX-Verhaltens: Antwort holen, ins Modell und die Kopfzeile übernehmen.
+  window.mockAjax = function (url) {
+    return new Promise(function (resolve) {
+      var x = new XMLHttpRequest();
+      x.open('GET', url);
+      x.onload = function () {
+        var data = JSON.parse(x.responseText);
+        data.forEach(function (entry) {
+          if (entry[0] === 'updateGlobalData') {
+            var h = entry[1].headerData;
+            ['currentResources','maxResources','resourceProduction','tradegoodProduction','producedTradegood','wineSpendings']
+              .forEach(function (k) { ikariam.model[k] = h[k]; });
+            ikariam.model.relatedCityData = h.cityDropdownMenu;
+            document.getElementById('js_GlobalMenu_resourceProduction').textContent = Math.round(h.resourceProduction * 3600);
+            document.getElementById('js_GlobalMenu_WineConsumption').textContent = h.wineSpendings;
+            document.getElementById('js_GlobalMenu_production_wine').textContent = Math.round(h.tradegoodProduction * 3600);
+            document.getElementById('js_GlobalMenu_production_marble').textContent = '0';
+            document.querySelector('#advMilitary a').className = h.advisors.military.cssclass;
+          }
+          if (entry[0] === 'changeView') {
+            ikariam.templateView = { id: entry[1][0] };
+            var tv = document.createElement('div');
+            tv.id = 'templateView';
+            tv.innerHTML = entry[1][1];
+            document.getElementById('container').appendChild(tv);
+          }
+        });
+        resolve();
+      };
+      x.send();
+    });
+  };
+</script>
+<script src="/__ikariam-mobile.user.js"></script>
+</body>
+</html>
