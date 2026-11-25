@@ -1,0 +1,21 @@
+{
+  "_hinweis": "Nachgestellt nach dem Aufbau von ikariam.model (Feldnamen wie in IkaEasy 0.6). Mit echten Debug-Exporten abgleichen.",
+  "avatarId": "100001",
+  "actionRequest": "geheim123",
+  "currentResources": { "resource": 18250, "1": 4120, "2": 9800, "3": 2100, "4": 7600, "citizens": 640.5, "population": 2310 },
+  "maxResources": { "resource": 32000, "1": 32000, "2": 32000, "3": 32000, "4": 32000 },
+  "resourceProduction": 0.5,
+  "tradegoodProduction": 0.25,
+  "producedTradegood": "2",
+  "wineSpendings": 1260,
+  "isOwnCity": true,
+  "requestTime": 1764100000,
+  "relatedCityData": {
+    "city_1001": { "id": 1001, "name": "Athen", "coords": "[50:50] ", "tradegood": "2", "relationship": "ownCity" },
+    "city_1002": { "id": 1002, "name": "Sparta", "coords": "[51:49] ", "tradegood": "1", "relationship": "ownCity" },
+    "city_1003": { "id": 1003, "name": "Korinth", "coords": "[48:52] ", "tradegood": "3", "relationship": "ownCity" },
+    "city_7777": { "id": 7777, "name": "Fremdstadt", "coords": "[10:10] ", "tradegood": "4", "relationship": "occupiedCities" },
+    "selectedCity": "city_1001",
+    "additionalInfo": "irrelevant"
+  }
+}

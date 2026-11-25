@@ -1,5 +1,8 @@
 # Ikariam-Plünderliste (ika-map.com)
 
+> **Neu:** [`ikariam-mobile/`](ikariam-mobile/) – Userscript für Tampermonkey (Lemur Browser) mit
+> handytauglicher Ressourcen- und Militär-Übersicht direkt im Spiel. Nur Anzeige, keine Automatik.
+
 Web-App im Docker-Container, für die Bedienung vom Handy gebaut. Sie holt alle paar Stunden die
 Inaktiven-Liste von [ika-map.com](https://www.ika-map.com/inactives) und erkennt, **wer seit dem
 letzten Abruf neu inaktiv geworden ist**. Daraus macht sie eine Plünderliste:

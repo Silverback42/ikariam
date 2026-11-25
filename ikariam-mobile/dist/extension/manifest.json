@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Ikariam Mobile",
+  "version": "0.1.0",
+  "description": "Handy-taugliche Ressourcen- und Militär-Übersicht für Ikariam. Nur Anzeige, keine automatischen Aktionen.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.ikariam.gameforge.com/*"
+      ],
+      "exclude_matches": [
+        "https://lobby.ikariam.gameforge.com/*"
+      ],
+      "js": [
+        "ikariam-mobile.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN",
+      "all_frames": false
+    }
+  ]
+}
